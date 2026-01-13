@@ -1,3 +1,4 @@
+#include <cassert>
 #include <list>
 #include <string>
 #include <tuple>
@@ -14,6 +15,10 @@ PathSplit::PathSplit(const char* pathptr, const size_t pathlen) {
     bool seg_found = false;
     bool last_was_dots = false;
 
+    is_dir_ = false;
+    if (pathlen > 0) {
+        assert(pathptr != nullptr);
+    }
     if (pathlen > 0)
         is_dir_ = pathptr[pathlen-1] == '/';
     
@@ -33,8 +38,8 @@ PathSplit::PathSplit(const char* pathptr, const size_t pathlen) {
                 } else if (seg_len == 2 && pathptr[seg_start] == '.' && pathptr[seg_start + 1] == '.') {
                     if (!segments_.empty()) {
                         segments_.pop_back();
-                        last_was_dots = true;
                     }
+                    last_was_dots = true;
                 } else {
                     segments_.push_back(std::make_tuple(seg_start, seg_end));
                 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test suite for zip-optimizer tool
+# Test suite for scalable-zip-optimize tool
 # Tests ZIP optimization functionality
 
 set -e
@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
-TEST_DIR="/tmp/zip-optimizer-tests"
+TEST_DIR="/tmp/scalable-zip-optimize-tests"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -57,7 +57,7 @@ fail_test() {
 test_help_output() {
     run_test "Help output"
 
-    if "$BUILD_DIR/zip-optimizer" --help | grep -q "block-size"; then
+    if "$BUILD_DIR/scalable-zip-optimize" --help | grep -q "block-size"; then
         pass_test
     else
         fail_test "Help output doesn't contain expected text"
@@ -68,7 +68,7 @@ test_help_output() {
 test_missing_arguments() {
     run_test "Missing arguments error"
 
-    if "$BUILD_DIR/zip-optimizer" --block-size 4096 2>/dev/null; then
+    if "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 2>/dev/null; then
         fail_test "Should fail with missing arguments"
     else
         pass_test
@@ -82,7 +82,7 @@ test_invalid_block_size() {
     echo "test" > file.txt
     zip -q test.zip file.txt
 
-    if "$BUILD_DIR/zip-optimizer" --block-size 3000 test.zip out.zip 2>/dev/null; then
+    if "$BUILD_DIR/scalable-zip-optimize" --block-size 3000 test.zip out.zip 2>/dev/null; then
         fail_test "Should reject non-power-of-2 block size"
     else
         pass_test
@@ -101,12 +101,12 @@ test_valid_block_sizes() {
     local success=true
 
     # Test 512
-    if ! "$BUILD_DIR/zip-optimizer" --block-size 512 test.zip out512.zip >/dev/null 2>&1; then
+    if ! "$BUILD_DIR/scalable-zip-optimize" --block-size 512 test.zip out512.zip >/dev/null 2>&1; then
         success=false
     fi
 
     # Test 4096
-    if ! "$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip out4096.zip >/dev/null 2>&1; then
+    if ! "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip out4096.zip >/dev/null 2>&1; then
         success=false
     fi
 
@@ -123,7 +123,7 @@ test_valid_block_sizes() {
 test_nonexistent_input() {
     run_test "Nonexistent input file"
 
-    if "$BUILD_DIR/zip-optimizer" --block-size 4096 nonexistent.zip out.zip 2>/dev/null; then
+    if "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 nonexistent.zip out.zip 2>/dev/null; then
         fail_test "Should fail with nonexistent input"
     else
         pass_test
@@ -150,7 +150,7 @@ test_decompression() {
     fi
 
     # Optimize
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
 
     # Verify it's now stored
     local opt_info=$(zipinfo optimized.zip | grep "data.txt")
@@ -175,7 +175,7 @@ test_data_integrity() {
     zip -9 test.zip random.bin >/dev/null 2>&1
 
     # Optimize
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
 
     # Extract and verify
     unzip -q optimized.zip
@@ -201,7 +201,7 @@ test_multiple_files() {
 
     zip -9 -r test.zip testdata/ >/dev/null 2>&1
 
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
 
     # Verify all files present
     local file_count=$(zipinfo optimized.zip | grep "testdata/file" | wc -l)
@@ -222,7 +222,7 @@ test_already_uncompressed() {
     echo "test" > file.txt
     zip -0 test.zip file.txt >/dev/null 2>&1
 
-    local output=$("$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip optimized.zip 2>&1)
+    local output=$("$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip optimized.zip 2>&1)
 
     # Should show 0 files decompressed
     if echo "$output" | grep -q "Files decompressed: 0"; then
@@ -240,9 +240,9 @@ test_empty_zip() {
 
     zip -q empty.zip -@ < /dev/null || true
 
-    if "$BUILD_DIR/zip-optimizer" --block-size 4096 empty.zip optimized.zip >/dev/null 2>&1; then
+    if "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 empty.zip optimized.zip >/dev/null 2>&1; then
         # Should succeed with 0 files
-        local output=$("$BUILD_DIR/zip-optimizer" --block-size 4096 empty.zip optimized2.zip 2>&1)
+        local output=$("$BUILD_DIR/scalable-zip-optimize" --block-size 4096 empty.zip optimized2.zip 2>&1)
         if echo "$output" | grep -q "Files processed: 0"; then
             pass_test
         else
@@ -263,7 +263,7 @@ test_nested_directories() {
     echo "deep file" > deep/a/b/c/d/file.txt
     zip -9 -r test.zip deep/ >/dev/null 2>&1
 
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip optimized.zip >/dev/null 2>&1
 
     # Extract and verify structure
     unzip -q optimized.zip
@@ -287,7 +287,7 @@ test_output_overwrite() {
     touch output.zip
 
     # Should overwrite
-    if "$BUILD_DIR/zip-optimizer" --block-size 4096 test.zip output.zip >/dev/null 2>&1; then
+    if "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 test.zip output.zip >/dev/null 2>&1; then
         if [ -s output.zip ]; then
             pass_test
         else
@@ -303,7 +303,7 @@ test_output_overwrite() {
 # Main execution
 main() {
     echo "======================================"
-    echo "zip-optimizer Test Suite"
+    echo "scalable-zip-optimize Test Suite"
     echo "======================================"
 
     trap cleanup EXIT

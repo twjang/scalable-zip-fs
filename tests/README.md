@@ -153,7 +153,7 @@ fusermount -u /tmp/scalable-zip-fs-integration/mount
 
 # Remove test directories
 rm -rf /tmp/scalable-zip-fs-*
-rm -rf /tmp/zip-optimizer-tests
+rm -rf /tmp/scalable-zip-optimize-tests
 ```
 
 ## Adding New Tests

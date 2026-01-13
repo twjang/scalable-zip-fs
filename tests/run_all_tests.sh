@@ -29,8 +29,8 @@ if [ ! -f "$SCRIPT_DIR/../build/scalable-zip-fs" ]; then
     exit 1
 fi
 
-if [ ! -f "$SCRIPT_DIR/../build/zip-optimizer" ]; then
-    echo -e "${RED}Error: zip-optimizer not built. Run 'meson compile -C build' first.${NC}"
+if [ ! -f "$SCRIPT_DIR/../build/scalable-zip-optimize" ]; then
+    echo -e "${RED}Error: scalable-zip-optimize not built. Run 'meson compile -C build' first.${NC}"
     exit 1
 fi
 

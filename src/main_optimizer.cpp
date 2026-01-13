@@ -1,11 +1,99 @@
 #include <iostream>
-#include <fstream>
 #include <vector>
 #include <string>
 #include <cstring>
 #include <filesystem>
+#include <ctime>
 #include <zip.h>
 #include <getopt.h>
+
+struct ZipStreamSource {
+    zip_t* input_zip = nullptr;
+    zip_uint64_t index = 0;
+    zip_uint64_t size = 0;
+    time_t mtime = 0;
+    zip_uint64_t stat_valid = 0;
+    zip_file_t* file = nullptr;
+    zip_error_t error;
+};
+
+struct ProgressState {
+    int last_percent = -1;
+};
+
+void write_progress_cb(zip_t* /*archive*/, double progress, void* userdata) {
+    ProgressState* state = static_cast<ProgressState*>(userdata);
+    if (progress < 0.0) {
+        progress = 0.0;
+    } else if (progress > 1.0) {
+        progress = 1.0;
+    }
+    int percent = static_cast<int>(progress * 100.0);
+    if (percent != state->last_percent) {
+        state->last_percent = percent;
+        std::cout << "Writing output: " << percent << "%\r" << std::flush;
+    }
+}
+
+zip_int64_t zip_stream_source_cb(void* userdata, void* data, zip_uint64_t len, zip_source_cmd_t cmd) {
+    ZipStreamSource* source = static_cast<ZipStreamSource*>(userdata);
+
+    switch (cmd) {
+        case ZIP_SOURCE_OPEN: {
+            source->file = zip_fopen_index(source->input_zip, source->index, 0);
+            if (!source->file) {
+                zip_error_set(&source->error, ZIP_ER_OPEN, 0);
+                return -1;
+            }
+            return 0;
+        }
+        case ZIP_SOURCE_READ: {
+            if (!source->file) {
+                zip_error_set(&source->error, ZIP_ER_INVAL, 0);
+                return -1;
+            }
+            zip_int64_t read_bytes = zip_fread(source->file, data, len);
+            if (read_bytes < 0) {
+                zip_error_set(&source->error, ZIP_ER_READ, 0);
+            }
+            return read_bytes;
+        }
+        case ZIP_SOURCE_CLOSE: {
+            if (source->file) {
+                zip_fclose(source->file);
+                source->file = nullptr;
+            }
+            return 0;
+        }
+        case ZIP_SOURCE_STAT: {
+            if (len < sizeof(zip_stat_t)) {
+                zip_error_set(&source->error, ZIP_ER_INVAL, 0);
+                return -1;
+            }
+            zip_stat_t* st = static_cast<zip_stat_t*>(data);
+            zip_stat_init(st);
+            st->size = source->size;
+            st->mtime = source->mtime;
+            st->valid = source->stat_valid;
+            return sizeof(zip_stat_t);
+        }
+        case ZIP_SOURCE_ERROR:
+            return zip_error_to_data(&source->error, data, len);
+        case ZIP_SOURCE_FREE:
+            if (source->file) {
+                zip_fclose(source->file);
+                source->file = nullptr;
+            }
+            zip_error_fini(&source->error);
+            delete source;
+            return 0;
+        case ZIP_SOURCE_SUPPORTS:
+            return ZIP_SOURCE_SUPPORTS_READABLE | ZIP_SOURCE_MAKE_COMMAND_BITMASK(ZIP_SOURCE_SUPPORTS);
+        default:
+            zip_error_set(&source->error, ZIP_ER_OPNOTSUPP, 0);
+            return -1;
+    }
+}
 
 void print_usage(const char* prog_name) {
     std::cerr << "Usage: " << prog_name << " --block-size SIZE input.zip output.zip\n";
@@ -111,6 +199,12 @@ int main(int argc, char** argv) {
     zip_int64_t num_entries = zip_get_num_entries(input_zip, 0);
     size_t files_processed = 0;
     size_t files_decompressed = 0;
+    ProgressState progress_state;
+
+    if (zip_register_progress_callback_with_state(output_zip, 0.01, write_progress_cb, nullptr,
+                                                  &progress_state) != 0) {
+        std::cerr << "Warning: Failed to register progress callback\n";
+    }
 
     for (zip_int64_t i = 0; i < num_entries; i++) {
         struct zip_stat st;
@@ -141,22 +235,6 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Read file data
-        zip_file_t* zf = zip_fopen_index(input_zip, i, 0);
-        if (!zf) {
-            std::cerr << "\nError: Failed to open file in ZIP: " << name << "\n";
-            continue;
-        }
-
-        std::vector<char> data(st.size);
-        zip_int64_t bytes_read = zip_fread(zf, data.data(), st.size);
-        zip_fclose(zf);
-
-        if (bytes_read != (zip_int64_t)st.size) {
-            std::cerr << "\nError: Failed to read complete file: " << name << "\n";
-            continue;
-        }
-
         // Note: Block alignment in ZIP files requires careful control of file positions
         // The current libzip API doesn't provide direct control over byte-level alignment
         // A full implementation would need to:
@@ -166,29 +244,33 @@ int main(int argc, char** argv) {
         //
         // For now, we focus on decompression (stored format) which is the primary optimization
 
-        // Add file to output ZIP in stored (uncompressed) mode
-        zip_source_t* source = zip_source_buffer(output_zip, data.data(), data.size(), 0);
+        // Add file to output ZIP in stored (uncompressed) mode using streaming source.
+        ZipStreamSource* stream_source = new ZipStreamSource();
+        stream_source->input_zip = input_zip;
+        stream_source->index = i;
+        stream_source->stat_valid = 0;
+        if (st.valid & ZIP_STAT_SIZE) {
+            stream_source->size = st.size;
+            stream_source->stat_valid |= ZIP_STAT_SIZE;
+        }
+        if (st.valid & ZIP_STAT_MTIME) {
+            stream_source->mtime = st.mtime;
+            stream_source->stat_valid |= ZIP_STAT_MTIME;
+        }
+        zip_error_init(&stream_source->error);
+
+        zip_source_t* source = zip_source_function(output_zip, zip_stream_source_cb, stream_source);
         if (!source) {
+            zip_error_fini(&stream_source->error);
+            delete stream_source;
             std::cerr << "\nError: Failed to create source for: " << name << "\n";
             continue;
         }
 
-        // Make the source own a copy of the data
-        std::vector<char>* data_copy = new std::vector<char>(data);
-        zip_source_t* source_owned = zip_source_buffer(output_zip, data_copy->data(), data_copy->size(), 0);
-        zip_source_free(source);
-
-        if (!source_owned) {
-            delete data_copy;
-            std::cerr << "\nError: Failed to create owned source for: " << name << "\n";
-            continue;
-        }
-
-        zip_int64_t idx = zip_file_add(output_zip, name, source_owned, ZIP_FL_OVERWRITE);
+        zip_int64_t idx = zip_file_add(output_zip, name, source, ZIP_FL_OVERWRITE);
         if (idx < 0) {
             std::cerr << "\nError: Failed to add file to output ZIP: " << name << "\n";
-            zip_source_free(source_owned);
-            delete data_copy;
+            zip_source_free(source);
             continue;
         }
 
@@ -201,11 +283,17 @@ int main(int argc, char** argv) {
         files_processed++;
     }
 
+    int close_status = zip_close(output_zip);
     zip_close(input_zip);
 
-    if (zip_close(output_zip) != 0) {
+    if (close_status != 0) {
         std::cerr << "Error: Failed to finalize output ZIP\n";
         return 1;
+    }
+    if (progress_state.last_percent < 100) {
+        std::cout << "Writing output: 100%\n";
+    } else {
+        std::cout << "\n";
     }
 
     std::cout << "\n";

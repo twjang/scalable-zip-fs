@@ -49,7 +49,7 @@ meson compile -C build
 ### Optimizing a ZIP file
 
 ```bash
-./build/zip-optimizer --block-size 4096 input.zip output.zip
+./build/scalable-zip-optimize --block-size 4096 input.zip output.zip
 ```
 
 ## Performance Considerations

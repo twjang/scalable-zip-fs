@@ -62,7 +62,7 @@ test_optimize_and_mount() {
     zip -9 compressed.zip data.txt >/dev/null 2>&1
 
     # Optimize
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
 
     # Mount optimized ZIP
     "$BUILD_DIR/scalable-zip-fs" optimized.zip "$MOUNT_POINT" -f &
@@ -100,8 +100,8 @@ test_optimized_multi_archive() {
     zip -9 compressed2.zip data2/file2.txt >/dev/null 2>&1
 
     # Optimize both
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 compressed1.zip opt1.zip >/dev/null 2>&1
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 compressed2.zip opt2.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 compressed1.zip opt1.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 compressed2.zip opt2.zip >/dev/null 2>&1
 
     # Mount both
     "$BUILD_DIR/scalable-zip-fs" opt1.zip opt2.zip "$MOUNT_POINT" -f &
@@ -142,7 +142,7 @@ test_performance_comparison() {
 
     # Create compressed and optimized versions
     zip -9 compressed.zip perfdata.txt >/dev/null 2>&1
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 compressed.zip optimized.zip >/dev/null 2>&1
 
     # Mount and time reads - compressed version
     "$BUILD_DIR/scalable-zip-fs" compressed.zip "$MOUNT_POINT" -f &
@@ -202,7 +202,7 @@ test_large_dataset() {
     zip -9 -r -q large.zip dataset/
 
     echo "  Optimizing..."
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 large.zip large_opt.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 large.zip large_opt.zip >/dev/null 2>&1
 
     echo "  Mounting optimized ZIP..."
     "$BUILD_DIR/scalable-zip-fs" large_opt.zip "$MOUNT_POINT" -f &
@@ -246,7 +246,7 @@ test_mixed_compression() {
     zip -9 mixed.zip mixed/* >/dev/null 2>&1
 
     # Optimize
-    local opt_output=$("$BUILD_DIR/zip-optimizer" --block-size 4096 mixed.zip mixed_opt.zip 2>&1)
+    local opt_output=$("$BUILD_DIR/scalable-zip-optimize" --block-size 4096 mixed.zip mixed_opt.zip 2>&1)
 
     # Should report decompressing at least one file
     if echo "$opt_output" | grep -q "Files decompressed"; then
@@ -265,7 +265,7 @@ test_concurrent_mounts() {
     # Create and optimize
     echo "shared content" > shared.txt
     zip -9 shared.zip shared.txt >/dev/null 2>&1
-    "$BUILD_DIR/zip-optimizer" --block-size 4096 shared.zip shared_opt.zip >/dev/null 2>&1
+    "$BUILD_DIR/scalable-zip-optimize" --block-size 4096 shared.zip shared_opt.zip >/dev/null 2>&1
 
     # Create two mount points
     mkdir -p mount1 mount2

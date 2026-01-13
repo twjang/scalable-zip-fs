@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 sources = [
-  'src/main.cpp',
+  'src/main_fs.cpp',
   'src/zipent.cpp',
   'src/utils.cpp',
   'src/fuse_ops.cpp',
@@ -50,11 +50,20 @@ optimizer_deps = [
 ]
 
 optimizer_exe = executable(
-  'zip-optimizer',
-  'src/zip_optimizer.cpp',
+  'scalable-zip-optimize',
+  'src/main_optimizer.cpp',
   install : true,
   dependencies : optimizer_deps,
   c_args: build_args,
 )
 
 test('basic', exe)
+
+pathsplit_exe = executable(
+  'test_pathsplit',
+  ['tests/test_pathsplit.cpp', 'src/utils.cpp'],
+  include_directories : incdir,
+  c_args : build_args,
+)
+
+test('pathsplit', pathsplit_exe)
