@@ -50,4 +50,4 @@ PathSplit::PathSplit(const char* pathptr, const size_t pathlen) {
 PathSplit::PathSplit(const std::string& path): PathSplit::PathSplit(path.c_str(), path.length()) { }
 
 
-}; // namespace scalable_zip_fs
+} // namespace scalable_zip_fs

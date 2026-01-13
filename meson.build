@@ -19,7 +19,6 @@ endif
 
 
 dependencies = [
-  dependency('liburing'),
   dependency('fuse3'),
   dependency('zlib'),
   dependency('libzip'),

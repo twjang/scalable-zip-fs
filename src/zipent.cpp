@@ -88,14 +88,14 @@ void ZipEntryManagerImpl::index_zipfile(const std::filesystem::path& path) {
                 auto dir_it = current_dir->dirs_.find(dir_name);
                 if (dir_it == current_dir->dirs_.end()) {
                     // Create new directory
-                    DirectoryEntry new_dir;
-                    new_dir.parent_ = current_dir;
+                    auto new_dir = std::make_unique<DirectoryEntry>();
+                    new_dir->parent_ = current_dir;
                     auto result = current_dir->dirs_.emplace(dir_name, std::move(new_dir));
-                    current_dir = &result.first->second;
+                    current_dir = result.first->second.get();
                     // Store pointer to the key in the map for name_
                     current_dir->name_ = &result.first->first;
                 } else {
-                    current_dir = &dir_it->second;
+                    current_dir = dir_it->second.get();
                 }
             }
 
@@ -112,21 +112,21 @@ void ZipEntryManagerImpl::index_zipfile(const std::filesystem::path& path) {
             }
 
             // Create file entry
-            FileEntry file_entry;
-            file_entry.parent_ = current_dir;
-            file_entry.zip_path_idx_ = zip_idx;
-            file_entry.size_ = st.size;
-            file_entry.compressed_size_ = st.comp_size;
+            auto file_entry = std::make_unique<FileEntry>();
+            file_entry->parent_ = current_dir;
+            file_entry->zip_path_idx_ = zip_idx;
+            file_entry->size_ = st.size;
+            file_entry->compressed_size_ = st.comp_size;
 
             // Get compression method
             zip_uint16_t comp_method = 0;
             if (st.valid & ZIP_STAT_COMP_METHOD) {
                 comp_method = st.comp_method;
             }
-            file_entry.need_decompression_ = (comp_method != ZIP_CM_STORE);
+            file_entry->need_decompression_ = (comp_method != ZIP_CM_STORE);
 
             // Track compressed files
-            if (file_entry.need_decompression_) {
+            if (file_entry->need_decompression_) {
                 compressed_files++;
             }
 
@@ -134,15 +134,15 @@ void ZipEntryManagerImpl::index_zipfile(const std::filesystem::path& path) {
             if (st.valid & ZIP_STAT_COMP_SIZE) {
                 // We need to calculate the actual data offset
                 // For now, store the index; we'll resolve offset on read
-                file_entry.offset_ = i;
+                file_entry->offset_ = i;
             } else {
-                file_entry.offset_ = 0;
+                file_entry->offset_ = 0;
             }
 
             // Insert file entry
             auto result = current_dir->files_.emplace(file_name, std::move(file_entry));
             // Store pointer to the key in the map for name_
-            result.first->second.name_ = &result.first->first;
+            result.first->second->name_ = &result.first->first;
             indexed_files++;
         }
     }
@@ -164,7 +164,7 @@ void ZipEntryManagerImpl::index_zipfile(const std::filesystem::path& path) {
 const DirectoryEntry* DirectoryEntry::find_dir(const std::string& name) const {
     auto it = dirs_.find(name);
     if (it != dirs_.end()) {
-        return &it->second;
+        return it->second.get();
     }
     return nullptr;
 }
@@ -172,7 +172,7 @@ const DirectoryEntry* DirectoryEntry::find_dir(const std::string& name) const {
 const FileEntry* DirectoryEntry::find_file(const std::string& name) const {
     auto it = files_.find(name);
     if (it != files_.end()) {
-        return &it->second;
+        return it->second.get();
     }
     return nullptr;
 }

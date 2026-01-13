@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 #include <cinttypes>
 #include <filesystem>
 
@@ -43,15 +44,15 @@ protected:
 class DirectoryEntry {
 public:
     inline const std::string& name() const { return *name_; }
-    inline const std::unordered_map<std::string, DirectoryEntry>& dirs() const { return dirs_; }
-    inline const std::unordered_map<std::string, FileEntry>& files() const { return files_; }
+    inline const std::unordered_map<std::string, std::unique_ptr<DirectoryEntry>>& dirs() const { return dirs_; }
+    inline const std::unordered_map<std::string, std::unique_ptr<FileEntry>>& files() const { return files_; }
 
     const DirectoryEntry* find_dir(const std::string& name) const;
     const FileEntry* find_file(const std::string& name) const;
 
 protected:
-    std::unordered_map<std::string, DirectoryEntry> dirs_;
-    std::unordered_map<std::string, FileEntry> files_;
+    std::unordered_map<std::string, std::unique_ptr<DirectoryEntry>> dirs_;
+    std::unordered_map<std::string, std::unique_ptr<FileEntry>> files_;
     DirectoryEntry* parent_;
     const std::string* name_;
 
@@ -79,6 +80,6 @@ protected:
 
 typedef Singleton<ZipEntryManagerImpl> ZipEntryManager;
 
-};
+}
 
 #endif
